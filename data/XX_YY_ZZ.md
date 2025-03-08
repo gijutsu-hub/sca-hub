@@ -1,140 +1,67 @@
-[](ctf=trend-micro-ctf-2017)
-[](type=analysis,reverse)
-[](tags=android)
-[](tools=jd-gui,dex2jar)
-[](techniques=bruteforce)
-
-# analysis-offensive 300
-
-*Disclaimer : This is not the smart way to do this, but its easy if you have an android development setup.*
-
-So we have an apk file.
-```bash
-$ file TrendGacha.apk
-TrendGacha.apk: Zip archive data, at least v2.0 to extract
-$ unzip -qq TrendGacha.apk -d TrendGacha
-$ ls TrendGacha
-AndroidManifest.xml  classes.dex  lib  META-INF  res  resources.arsc
-$ cd TrendGacha
-$ ~/tools/dex2jar/d2j-dex2jar.sh classes.dex
-dex2jar classes.dex -> ./classes-dex2jar.jar
-```
-
-I also installed the apk on a device to test it.
-
-![Main](menu.png)
-
-The functions are quite simple. When you click on `GET GACHA!` it'll choose a character of the flag and give it to you. All your leaked chars can then be seen later in the `HISTORY`.
-
-Looking in the output of jd-gui on the jar. The code for `GET GACHA!`.
-
-```java
-public void run()
-      {
-        Intent localIntent = new Intent("com.tm.ctf.trendgacha.GET_GACHA");
-        if (a.N() == null) {
-          a.b(a.this.i().getApplicationContext());
-        }
-        a.N().sendBroadcast(localIntent);
-        a.a(a.this, true);
-      }
-```
-So the button sends a com.tm.ctf.trendgacha.GET_GACHA intent via broadcast which is then handled by GachaBroadcastReceiver.
-
-```java
-public void onReceive(Context paramContext, Intent paramIntent)
-  {
-    Log.i(a, "onReceive: action=" + paramIntent.getAction());
-    if (!paramIntent.getAction().equals("com.tm.ctf.trendgacha.GET_GACHA")) {
-      return;
-    }
-    paramIntent = paramIntent.getExtras();
-    if (paramIntent != null) {}
-    for (int i = Integer.valueOf(paramIntent.getString("TryLoop", "1")).intValue();; i = 1)
-    {
-      for (int j = 0; j < i; j++)
-      {
-        d.b(paramContext.getApplicationContext());
-        int n = d.a(paramContext.getApplicationContext());
-        paramIntent = GachaAPI.getGacha(n);
-        int k = paramIntent[0];
-        char c1 = (char)paramIntent[1];
-        d.a(paramContext.getApplicationContext(), k, c1);
-        int m = d.b(paramContext.getApplicationContext(), k, c1);
-        Log.i(a, "TrialCount: " + n + ", Order: " + k + ", Gacha: " + c1 + ", Count: " + m);
-        paramIntent = c.iterator();
-        while (paramIntent.hasNext()) {
-          ((b)paramIntent.next()).b_();
-        }
-        Toast.makeText(paramContext, "Got \"" + k + "-" + c1 + "\" !", 0).show();
-        if (n < 10) {
-          Toast.makeText(paramContext, "Check History!", 0).show();
-        }
-      }
-      break;
-    }
-  }
-}
-```
-This will leak a byte of the flag. We also see a variable `TryLoop` which will repeat the leak `TryLoop` times. Whenever we press the `GET GACHA!` button `TRIAL_COUNT` is increased in the SharedPreferences. The `GachaAPI.getGacha` is called on the value of `TRIAL_COUNT`. Its good that we can broadcast intents via adb so that we can set `TRIAL_COUNT` to a very high value.
-
-```bash
-$ adb shell am broadcast -a com.tm.ctf.trendgacha.GET_GACHA -e TryLoop 100
-Broadcasting: Intent { act=com.tm.ctf.trendgacha.GET_GACHA (has extras) }
-Broadcast completed: result=0
-```
-Hoever this only leaks a few bytes of the flag which we can view in History. I tried to set the number to 10000 and more but the process was slow and I got bored.
-
-![History](history.png)
-
-Looking into the source of `GachaAPI.getGacha` we see that it loads a native library.
-
-```java
-package com.tm.ctf.trendgacha;
-
-public class GachaAPI
 {
-  static
-  {
-    System.loadLibrary("native-lib");
-  }
-
-  public static native int[] getGacha(int paramInt);
-}
-```
-If only I could run `getGacha` with my parameters. I never did much development in Android, so I downloaded Android Studio, added `com.tm.ctf.trendgacha` in a sample app from the decompiled source and added the jniLibs to include `native-lib`. I added the following code in an activity to retrieve and save the flag to a file.
-
-```java
-protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_card_view);
-        Log.i(TAG,"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
-        int i = 1;
-        for(i = 1 ; i < 1000000 ; ++i){
-            int[] x = GachaAPI.getGacha(i);
-            appendLog("Result : " +(char)x[1] + " : " + Arrays.toString(x) );
-        }
+  "schema_version": "1.4.0",
+  "id": "GHSA-6wxf-7784-62fp",
+  "modified": "2025-03-07T20:00:02Z",
+  "published": "2025-03-07T20:00:01Z",
+  "aliases": [],
+  "summary": "Horcrux Double Sign Possibility",
+  "details": "# **Horcrux Incident Disclosure: Possible Double-Sign**\n\n## **Summary**\n\nOn March 6, 2025, a Horcrux user (01node) experienced a double-signing incident on the Osmosis network, resulting in a 5% slash penalty (approximately 75,000 OSMO or $20,000 USD). After thorough investigation, we have identified a race condition in Horcrux's signature state handling as the root cause. This vulnerability was introduced in July 2023 as part of PR [\\#169](https://github.com/strangelove-ventures/horcrux/pull/169) and affects all Horcrux versions from v3.1.0 through v3.3.1. A fix has been developed and is being deployed immediately.\n\n## **Probability**\n\nThe bug has an extremely low probability of occurrence, affecting one validator out of hundreds that have been using the affected software versions to validate over the past few years. In the added tests, the probability on typical hardware is in the range of 1 in 1 billion per signed vote due to the root cause needing two independent events to occur within approximately the same microsecond duration.\n\n## **Severity**\n\nWhile rare, it is of high severity, as the double-sign (tombstone) slash on most Cosmos chains is typically 5% to the validator’s self stake and the stake of delegators that is delegated to the validator. The bug is not exploitable, so the urgency to apply this patch is purely around avoiding the race condition to remove tombstone risk.\n\n## **Impact**\n\n* One known validator (01node) was affected  \n* The validator and its delegators were slashed 5% of their stake delegated with the validator (\\~75,000 OSMO, \\~$20,000 USD)  \n* The incident occurred at Osmosis block height 30968345\n\n## **Technical Details**\n\n### **Root Cause**\n\nThe issue was a race condition in the signature state handling code. When two sign requests arrive nearly simultaneously for the same Height-Round-Step (HRS), a split read-write lock pattern allowed both to proceed when they should have been serialized. This vulnerability allowed Horcrux to sign both a \"yes\" vote (non-nil BlockID) and a \"no\" vote (nil BlockID) for the same block, which constitutes a double sign violation.\n\nIn the affected code:\n\n1. The `HRSKey()` method used a read lock to check the current signature state  \n2. The `cacheAndMarshal()` method used a separate write lock to update the state\n\nBecause the usage of these operations unlocked in the middle to perform checks rather than occurring under a single lock, they were not atomic. Very rarely, two concurrent signature requests could both pass the initial safety check before either one updated the state, leading to a double signature.\n\nEvidence from logs shows two different signatures were produced within 1.5 milliseconds of each other:\n\n```\nDuplicateVoteEvidence{\n  VoteA: Vote{69:03C016AB7EC3 30968345/00/SIGNED_MSG_TYPE_PREVOTE(Prevote) 000000000000 BEEB4E1F5432 000000000000 @ 2025-03-06T21:35:48.759070033Z}, \n  VoteB: Vote{69:03C016AB7EC3 30968345/00/SIGNED_MSG_TYPE_PREVOTE(Prevote) 817EB28D720F FAE04CB3CF89 000000000000 @ 2025-03-06T21:35:48.760639069Z}\n}\n```\n\nThis matches the signatures reported in the Horcrux cosigner logs:\n\n* Cosigner-1: `sig=FAE04CB3CF89 ts=\"2025-03-06 21:35:48.760639069 +0000 UTC\"`  \n* Cosigner-2: `sig=BEEB4E1F5432 ts=\"2025-03-06 21:35:48.759070033 +0000 UTC\"`\n\nThe race condition allowed both signatures to be validated and broadcast, resulting in the double sign.\n\n### **Fix**\n\nThe fix implements a single mutex lock that covers both the reading of the current signature state and the subsequent writing of any updates:\n\n```go\nfunc (signState *SignState) Save(\n\tssc SignStateConsensus,\n\tpendingDiskWG *sync.WaitGroup,\n) error {\n\tsignState.mu.Lock()\n\tif err := signState.getErrorIfLessOrEqual(ssc.Height, ssc.Round, ssc.Step); err != nil {\n\t\tsignState.mu.Unlock()\n\t\treturn err\n\t}\n\n\t// HRS is greater than existing state, move forward with caching and saving.\n\tsignState.cache[ssc.HRSKey()] = ssc\n\t\n\t// Update state\n\t// ...\n\t\n\tsignStateCopy := signState.copy()\n\tsignState.mu.Unlock()\n\t\n\t// Perform disk operations\n\t// ...\n}\n```\n\nBy using a single lock for both operations, we ensure that only one signature request for a given HRS can proceed at a time, eliminating the race condition.\n\n## **Timeline**\n\n* **July 6, 2023**: Vulnerability introduced in PR \\#169 \"sign state signaling\"  \n* **March 6, 2025, \\~21:35 UTC**: 01node double-sign occurred at Osmosis block height 30968345  \n* **March 6, 2025, \\~23:25 UTC**: 01node reported the incident  \n* **March 7, 2025, \\~1:03 UTC**: Root cause identified and fix developed  \n* **March 7, 2025**: Fix released and deployed (planned)\n\n## **Recommendations**\n\nAll Horcrux users running versions v3.1.0 through v3.3.1 should update to the patched version immediately. The fix is backward compatible and does not require any configuration changes.\n\nUpdate instructions:\n\n1. Download the v3.3.2 release binary or container image, or build from source on the v3.3.2 tag  \n2. Apply the release binary or image to your deployment  \n3. Restart your cosigner processes one at a time to ensure continuous validator operation\n\n## **Preventive Measures**\n\nTo prevent similar issues in the future, we are implementing the following measures:\n\n1. Adding additional tests focused on concurrent signature requests  \n2. Implementing a comprehensive review of all critical-path mutex usage in the codebase  \n3. Adding additional logging and monitoring for potential double-sign conditions  \n4. Enhancing the code review process for security-critical components\n\n## **Conclusion**\n\nWe deeply regret this incident and the impact it has had on affected validators. Horcrux was specifically designed to prevent double-signing, and we take this failure extremely seriously. We are committed to making all necessary improvements to ensure this type of incident cannot occur again.\n\nStrangelove is in direct communication with affected parties and will provide any assistance needed, including detailed technical information about the incident and remediation steps.\n\nWe will be working with 01node to reimburse those impacted by the tombstone event slash.\n\nFor any questions or concerns regarding this incident, please contact [security@strange.love](mailto:security@strange.love).",
+  "severity": [
+    {
+      "type": "CVSS_V4",
+      "score": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:H/VA:N/SC:N/SI:N/SA:N/E:A"
     }
-```
-This succesfully gave me the flag. Just later I realized that I could have controlled the parameter to `GachaAPI.getGacha` from the `TRIAL_COUNT` in SharedPreferences. SharedPreferences are usually saved in XML format in /data/data/< appname >/shared_prefs/*.xml. But we need root on the device to pull and push these files. So to test this I set up a new AVD (already rooted!) and installed the app.
-
-```bash
-$ ~/Android/Sdk/platform-tools/adb pull /data/data/com.tm.ctf.trendgacha/shared_prefs/PREFERENCES.xml
-/data/data/com.tm.ctf.trendgacha/shared_... pulled. 0.2 MB/s (1892 bytes in 0.009s)
-```
-In PREFERENCES.xml I increased the `TRIAL_COUNT`.
-```xml
-<int name="TRIAL_COUNT" value="3000863" />
-```
-And then pushed it back and restarted the application.
-```bash
-$  ~/Android/Sdk/platform-tools/adb push PREFERENCES.xml /data/data/com.tm.ctf.trendgacha/shared_prefs/PREFERENCES.xml
-PREFERENCES.xml: 1 file pushed. 0.2 MB/s (1893 bytes in 0.009s)
-$  ~/Android/Sdk/platform-tools/adb  shell am broadcast -a com.tm.ctf.trendgacha.GET_GACHA -e TryLoop 100
-Broadcasting: Intent { act=com.tm.ctf.trendgacha.GET_GACHA (has extras) }
-Broadcast completed: result=0
-```
-
-This will give us the flag.
-
-![Flag](final.png)
+  ],
+  "affected": [
+    {
+      "package": {
+        "ecosystem": "Go",
+        "name": "github.com/strangelove-ventures/horcrux/v3"
+      },
+      "ranges": [
+        {
+          "type": "ECOSYSTEM",
+          "events": [
+            {
+              "introduced": "3.1.0"
+            },
+            {
+              "fixed": "3.3.2"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "references": [
+    {
+      "type": "WEB",
+      "url": "https://github.com/strangelove-ventures/horcrux/security/advisories/GHSA-6wxf-7784-62fp"
+    },
+    {
+      "type": "WEB",
+      "url": "https://github.com/strangelove-ventures/horcrux/pull/169"
+    },
+    {
+      "type": "WEB",
+      "url": "https://github.com/strangelove-ventures/horcrux/commit/fb49be9baed30942b81b42da2b4f7040a2a83c02"
+    },
+    {
+      "type": "PACKAGE",
+      "url": "https://github.com/strangelove-ventures/horcrux"
+    },
+    {
+      "type": "WEB",
+      "url": "https://github.com/strangelove-ventures/horcrux/releases/tag/v3.3.2"
+    }
+  ],
+  "database_specific": {
+    "cwe_ids": [
+      "CWE-362"
+    ],
+    "severity": "HIGH",
+    "github_reviewed": true,
+    "github_reviewed_at": "2025-03-07T20:00:01Z",
+    "nvd_published_at": null
+  }
+}
