@@ -1,3 +1,9 @@
 {
-  "title": "Issue affects"
+  "title": "Issue affects",
+  "tags": {
+    "type": "Security",
+    "priority": "high",
+    "status": "fixed",
+    "reviewed": "True"
+  }
 }
