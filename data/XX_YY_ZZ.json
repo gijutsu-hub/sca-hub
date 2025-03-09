@@ -3,7 +3,28 @@
   "tags": {
     "type": "Security",
     "priority": "high",
-    "status": "fixed",
-    "reviewed": "True"
-  }
+    "status": "Patched"
+  },
+  "pkg": [
+    {
+      "package": "Package A",
+      "affectedVersions": "1.0.0 - 1.2.0",
+      "patchedVersion": "1.2.1"
+    },
+    {
+      "package": "Package B",
+      "affectedVersions": "2.1.0 - 2.3.0",
+      "patchedVersion": "2.3.1"
+    },
+    {
+      "package": "Package C",
+      "affectedVersions": "3.0.0 - 3.4.0",
+      "patchedVersion": "3.4.1"
+    },
+    {
+      "package": "Package D",
+      "affectedVersions": "4.0.0 - 4.2.0",
+      "patchedVersion": "4.2.1"
+    }
+  ]
 }
